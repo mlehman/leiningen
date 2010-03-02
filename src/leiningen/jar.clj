@@ -10,26 +10,32 @@
            [java.io BufferedOutputStream FileOutputStream
             ByteArrayInputStream]))
 
+(defn relative-file [base file]
+  (.getPath (.relativize  (.toURI base) (.toURI file))))
+
 (defn relative-lib-files
   "Returns a seq of relative Files for all the jars in the project's library directory."
   [project]
-  (let [root-uri (.toURI (file (:root project)))]
-   (map #(.getPath (.relativize root-uri (.toURI %)))
-	(filter #(.endsWith (.getName %) ".jar")
-		(file-seq (file (:library-path project)))))))
+  (let [root (file (:root project))]
+    (map #(relative-file root %)
+	 (filter #(.endsWith (.getName %) ".jar")
+		 (file-seq (file (:library-path project)))))))
 
 (defn make-manifest [project]
   (Manifest.
    (ByteArrayInputStream.
     (to-byte-array
      (str  (str-join "\n"
-                     ["Manifest-Version: 1.0" ; DO NOT REMOVE!
-                      "Created-By: Leiningen"
-                      (str "Built-By: " (System/getProperty "user.name"))
-                      (str "Build-Jdk: " (System/getProperty "java.version"))
-		      (str "Class-Path: " (apply str (interpose "\n  " (relative-lib-files project))))
-                      (when-let [main (:main project)]
-                        (str "Main-Class: " main))])
+		     (remove nil?
+			     ["Manifest-Version: 1.0" ; DO NOT REMOVE!
+			      "Created-By: Leiningen"
+			      (str "Built-By: " (System/getProperty "user.name"))
+			      (str "Build-Jdk: " (System/getProperty "java.version"))
+			      (if (:manifest-class-path project)
+				(str "Class-Path: " 
+				     (apply str (interpose "\n  " (relative-lib-files project)))))			     
+			      (when-let [main (:main project)]
+				(str "Main-Class: " main))]))
            "\n")))))
 
 (defn unix-path [path]
